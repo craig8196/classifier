@@ -1,0 +1,7 @@
+Percent Success (one word token classifier no smoothing): 0.526095238095
+Percent Success (naive classifier no smoothing): 0.456761904762
+Percent Success (two word token classifier no smoothing): 0.375619047619
+Percent Success (random classifier): 0.288761904762
+Percent Success (two word token classifier with smoothing): 0.736761904762
+Percent Success (naive classifier with smoothing): 0.616380952381
+Percent Success (one word token classifier with smoothing): 0.705142857143

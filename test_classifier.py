@@ -3,12 +3,12 @@ import os.path as path
 import re
 import codecs
 from classifier import Classifier
-from train_classifier import token_iterator, TOKEN_PATTERN
+from train_classifier import token_iterator, TOKEN_PATTERN, TEST_FILE
 
 if __name__ == "__main__":
     c = Classifier()
     c.load_model("char_level_classifier.json")
-    test_file = "assignment2/pnp-test.txt"
+    test_file = TEST_FILE
     
     # Grab all test data from the file.
     test_data = []
@@ -27,14 +27,24 @@ if __name__ == "__main__":
     if not path.exists(classifier_data_directory):
         os.mkdir(classifier_data_directory)
     
+    
+    print "Number of test documents:", len(test_data)
     # Use a suite of classifiers and gather statistics.
-    classifiers = {
-        'random classifier': c.classify_random,
-        'naive classifier no smoothing': c.classify,
-        'one word token classifier no smoothing': c.classify_prev_token,
-        'two word token classifier no smoothing': c.classify_prev_prev_token,
-    }
-    for classifier_name, classifier in classifiers.iteritems():
+    classifiers = [
+        ('random classifier', c.classify_random),
+        ('greedy', c.classify_greedy),
+        ('naive classifier no smoothing', c.classify),
+        ('one word token classifier no smoothing', c.classify_prev_token),
+        ('two word token classifier no smoothing', c.classify_prev_prev_token),
+        ('naive classifier with smoothing', c.classify_plus_one),
+        ('one word token classifier with smoothing', c.classify_prev_token_plus_one),
+        ('two word token classifier with smoothing', c.classify_prev_prev_token_plus_one),
+        ('assume_seen', c.classify_assume_seen),
+        ('assume_seen one prev word token', c.classify_assume_seen_prev),
+        ('assume_seen two prev word token', c.classify_assume_seen_prev_prev),
+        #~ ('semi-supervised', c.classify_semi_supervised),
+    ]
+    for classifier_name, classifier in classifiers:
         confusion_matrix = {} # TODO save confusion_matrices for write-up
         confused_documents = [] # TODO save mis-classified text to file
         success_count = 0
