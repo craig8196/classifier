@@ -31,6 +31,10 @@ class Model(object):
         temp[0] += increment
         temp[1][item] = temp[1].setdefault(item, 0) + increment
     
+    def get_table(self, given):
+        given_key = str(given)
+        return self.internal_model[given_key]
+    
     def log(self, item, given):
         """Return the numerator and the denominator of the probability as a tuple of logs.
         e.g. log(num/denom) = log(num)-log(denom) => return log(num), log(denom)
@@ -179,12 +183,35 @@ class Classifier(object):
             if given != '':
                 self.smoothed_model.add_given(self.JUNK, given, 0)
         self.types[self.JUNK] = True
-        self.semi_supervised_mode.mimic(self.smoothed_model)
+        self.semi_supervised_model.mimic(self.smoothed_model)
         self.semi_supervised_types = copy.deepcopy(self.types)
     
     def unsupervised_training(self, batch):
-        for token_list in batch:
-            pass
+        throw_out_percent = 0.5
+        sub_batch_size = 200
+        batch_count = 0
+        while len(batch) > 0:
+            batch_count += 1
+            sub_batch = batch[:sub_batch_size]
+            batch = batch[sub_batch_size:]
+            print "Subbatch:", batch_count
+            print "Subbatch Size:", len(sub_batch)
+            sub_batch_threshold = len(sub_batch)*throw_out_percent
+            while len(sub_batch) > sub_batch_threshold:
+                max_class = 'No Class'
+                max_class_log = -sys.float_info.max
+                max_class_index = 0
+                # Find largest class log probability
+                for i, token_list in enumerate(sub_batch):
+                    c, log_c = self.classify_prev_prev_token_plus_one_special(token_list)
+                    if log_c > max_class_log:
+                        max_class_log = log_c
+                        max_class = c
+                        max_class_index = i
+                # Train on most probable
+                self._train_model(self.semi_supervised_model, max_class, sub_batch[max_class_index], self.START)
+                del sub_batch[max_class_index]
+                        
     
     def print_model(self):
         self.model.print_model()
@@ -197,6 +224,7 @@ class Classifier(object):
             temp['types'] = self.types
             temp['semi-supervised'] = self.semi_supervised_model.internal_model
             temp['semi-supervised-types'] = self.semi_supervised_types
+            temp['classes'] = self.classes
             f_out.write(json.dumps(temp))
     
     def load_model(self, file_name):
@@ -207,10 +235,12 @@ class Classifier(object):
             self.types = temp['types']
             self.semi_supervised_model.internal_model = temp['semi-supervised']
             self.semi_supervised_types = temp['semi-supervised-types']
+            self.classes = temp['classes']
     
     def check_model(self):
         """Check that the model is not broken."""
-        return self.model.check_sum_to_one() and self.smoothed_model.check_sum_to_one()
+        return self.model.check_sum_to_one() and self.smoothed_model.check_sum_to_one() and \
+               self.semi_supervised_model.check_sum_to_one()
     
     def print_stats(self):
         """Print out basic statistics."""
@@ -373,6 +403,54 @@ class Classifier(object):
                 max_log_prob = total
                 max_class = class_name
         return max_class
+        
+    def classify_add_hoc(self, token_list):
+        """Classify the given words with plus one smoothing and two previous token.
+        token_list - A list of tokens used to classify the document.
+        Return the most probable class name.
+        """
+        max_class = "No Class"
+        max_log_prob = -sys.float_info.max
+        for class_name in self.smoothed_model.get_table_iterator(''):
+            prev_prev_token = self.START
+            prev_token = self.START
+            total1, total2 = 0, 0
+            for token in token_list:
+                temp1, temp2 = self.smoothed_model.smoothed_log(token, (class_name, prev_prev_token, prev_token), 1, len(self.types), self.JUNK, True)
+                prev_prev_token = prev_token
+                prev_token = token
+                total1 += temp1
+                total2 += temp2
+            total = total1 - total2
+            # Check for better class found.
+            if total >= max_log_prob:
+                max_log_prob = total
+                max_class = class_name
+        return max_class
+    
+    def classify_prev_prev_token_plus_one_special(self, token_list):
+        """Classify the given words with plus one smoothing and two previous token.
+        token_list - A list of tokens used to classify the document.
+        Return the most probable class name.
+        """
+        max_class = "No Class"
+        max_log_prob = -sys.float_info.max
+        for class_name in self.semi_supervised_model.get_table_iterator(''):
+            prev_prev_token = self.START
+            prev_token = self.START
+            total1, total2 = self.semi_supervised_model.smoothed_log(class_name, '')
+            for token in token_list:
+                temp1, temp2 = self.semi_supervised_model.smoothed_log(token, (class_name, prev_prev_token, prev_token), 1, len(self.types), self.JUNK, True)
+                prev_prev_token = prev_token
+                prev_token = token
+                total1 += temp1
+                total2 += temp2
+            total = total1 - total2
+            # Check for better class found.
+            if total >= max_log_prob:
+                max_log_prob = total
+                max_class = class_name
+        return max_class, max_log_prob
     
     def classify_assume_seen(self, token_list):
         """Classify the given words assuming that the words are part of the training data for each class.
@@ -450,23 +528,47 @@ class Classifier(object):
         return max_class
     
     def classify_semi_supervised(self, token_list):
-        """Classify the given words assuming that the words are part of the training data for each class using two prev word.
+        """Classify the given words using a semi supervised model,
+        for each class using two prev word.
         token_list - A list of tokens used to classify the document.
         Return the most probable class name.
         """
         
         max_class = "No Class"
         max_log_prob = -sys.float_info.max
-        for class_name in self.supervised_model.get_table_iterator(''):
-            total1, total2 = self.supervised_model.log(class_name, '')
+        for class_name in self.semi_supervised_model.get_table_iterator(''):
+            total1, total2 = self.semi_supervised_model.smoothed_log(class_name, '')
+            prev_prev_token = self.START
+            prev_token = self.START
             for token in token_list:
-                given = (class_name,)
-                temp1, temp2 = self.supervised_model.log(token, given, 1, len(self.types), self.JUNK)
+                given = (class_name, prev_prev_token, prev_token)
+                temp1, temp2 = self.semi_supervised_model.smoothed_log(token, given, 1, len(self.semi_supervised_types), self.JUNK, True)
                 total1 += temp1
                 total2 += temp2
+                prev_prev_token = prev_token
+                prev_token = token
             total = total1 - total2
             # Check for better class found.
             if total >= max_log_prob:
                 max_log_prob = total
                 max_class = class_name
         return max_class
+        #~ 
+        #~ max_class = "No Class"
+        #~ max_log_prob = -sys.float_info.max
+        #~ for class_name in self.smoothed_model.get_table_iterator(''):
+            #~ prev_prev_token = self.START
+            #~ prev_token = self.START
+            #~ total1, total2 = self.smoothed_model.smoothed_log(class_name, '')
+            #~ for token in token_list:
+                #~ temp1, temp2 = self.smoothed_model.smoothed_log(token, (class_name, prev_prev_token, prev_token), 1, len(self.types), self.JUNK, True)
+                #~ prev_prev_token = prev_token
+                #~ prev_token = token
+                #~ total1 += temp1
+                #~ total2 += temp2
+            #~ total = total1 - total2
+            #~ # Check for better class found.
+            #~ if total >= max_log_prob:
+                #~ max_log_prob = total
+                #~ max_class = class_name
+        #~ return max_class

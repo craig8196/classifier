@@ -1,0 +1,6 @@
+, movie, drug, place, company, person
+movie, 476, 89, 63, 39, 91
+drug, 51, 476, 46, 19, 28
+place, 72, 39, 258, 14, 40
+company, 17, 8, 1, 306, 10
+person, 79, 21, 38, 5, 339

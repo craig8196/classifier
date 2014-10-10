@@ -8,6 +8,8 @@ TRAINING_FILE = "assignment2/pnp-train.txt"
 VALIDATE_FILE = "assignment2/pnp-validate.txt"
 TEST_FILE = "assignment2/pnp-test.txt"
 
+TRAINING_FILE_OUTPUT = 'trained.json'
+
 TOKEN_REGEX = r"."
 TOKEN_PATTERN = re.compile(TOKEN_REGEX)
 
@@ -39,9 +41,21 @@ if __name__ == "__main__":
     
     # Unsupervised learning
     # Note that optimally this would be done in the test file
-    # but we do it here so the expensive process can be done 
+    # but we do it here so the expensive process can be done once and then
+    # saved to be used in testing.
+    batch = [] # Unknown data.
+    with codecs.open(TEST_FILE, 'r', 'utf-8') as f:
+        for line in f:
+            class_name, text = line.split('\t', 1)
+            text = text.strip()
+            tokens = []
+            for token in token_iterator(text, TOKEN_PATTERN):
+                tokens.append(token)
+            batch.append(tokens)
+    print "Number of unsupervised learning:", len(batch)
+    c.unsupervised_training(batch)
     
     assert c.check_model()
     print "Sanity check passed."
     c.print_stats()
-    c.save_model("char_level_classifier.json")
+    c.save_model(TRAINING_FILE_OUTPUT)
