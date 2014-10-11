@@ -1,3 +1,6 @@
+# classifier.py
+# Its gotten ugly as I've added different ways of classifying :P
+
 import json
 from math import log
 import codecs
@@ -553,22 +556,3 @@ class Classifier(object):
                 max_log_prob = total
                 max_class = class_name
         return max_class
-        #~ 
-        #~ max_class = "No Class"
-        #~ max_log_prob = -sys.float_info.max
-        #~ for class_name in self.smoothed_model.get_table_iterator(''):
-            #~ prev_prev_token = self.START
-            #~ prev_token = self.START
-            #~ total1, total2 = self.smoothed_model.smoothed_log(class_name, '')
-            #~ for token in token_list:
-                #~ temp1, temp2 = self.smoothed_model.smoothed_log(token, (class_name, prev_prev_token, prev_token), 1, len(self.types), self.JUNK, True)
-                #~ prev_prev_token = prev_token
-                #~ prev_token = token
-                #~ total1 += temp1
-                #~ total2 += temp2
-            #~ total = total1 - total2
-            #~ # Check for better class found.
-            #~ if total >= max_log_prob:
-                #~ max_log_prob = total
-                #~ max_class = class_name
-        #~ return max_class

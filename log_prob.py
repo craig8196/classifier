@@ -1,4 +1,8 @@
-import os
+# lob_prob.py
+# simple command line utility 
+# e.g. python log_prob.py movie "" # Gets the log probability of a movie, log(P(c=movie))
+# e.g. python lob_prob.py w movie s a # Gets the log of P(w_i=w|c=movie, w_i-2=s, w_i-1=a)
+
 import os.path as path
 import re
 import codecs
